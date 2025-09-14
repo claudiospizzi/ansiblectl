@@ -21,7 +21,7 @@
     Copyright = 'Copyright (c) 2025 by Claudio Spizzi. Licensed under MIT license.'
 
     # Description of the functionality provided by this module
-    Description = 'PowerShell sidecar module for the docker image claudiospizzi/ansiblectl.'
+    Description = 'The Ansible Control (ansiblectl) provides a lightweight containerized environment to run Ansible on Windows.'
 
     # Minimum version of the Windows PowerShell engine required by this module
     PowerShellVersion = '5.1'

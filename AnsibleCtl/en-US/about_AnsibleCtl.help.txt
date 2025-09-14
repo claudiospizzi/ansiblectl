@@ -3,7 +3,8 @@ TOPIC
     about_AnsibleCtl
 
 SHORT DESCRIPTION
-    PowerShell sidecar module for the docker image claudiospizzi/ansiblectl.
+    The Ansible Control (ansiblectl) provides a lightweight containerized
+    environment to run Ansible on Windows.
 
 LONG DESCRIPTION
     To get more information about this module, check the open source GitHub
