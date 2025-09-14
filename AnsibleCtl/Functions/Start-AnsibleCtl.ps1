@@ -17,7 +17,7 @@
 function Start-AnsibleCtl
 {
     [Alias('ansiblectl')]
-    [CmdletBinding(DefaultParameterSetName = '1Password')]
+    [CmdletBinding(DefaultParameterSetName = 'ContainerImage_KeyFiles')]
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', '', Justification = 'The 1Password key item is not a password but the item id or name.')]
     param
     (
@@ -27,20 +27,43 @@ function Start-AnsibleCtl
         $RepositoryPath = $PWD.Path,
 
         # The container image to use.
-        [Parameter(Mandatory = $false)]
+        [Parameter(Mandatory = $false, ParameterSetName = 'ContainerImage_KeyFiles')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'ContainerImage_1Password')]
         [System.String]
         $ContainerImage = 'claudiospizzi/ansiblectl:latest',
 
+        # The Ansible version to use. This will be the container image tag, so
+        # semantic versioning is supported of the Ansible community package
+        # release version. It has to be a prebuilt image in the container
+        # registry claudiospizzi/ansiblectl.
+        [Parameter(Mandatory = $true, ParameterSetName = 'AnsibleVersion_KeyFiles')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'AnsibleVersion_1Password')]
+        [System.String]
+        $AnsibleVersion,
+
+        # If set, a custom Dockerfile will be used to build the container image
+        # before starting the Ansible Control. The base image is controlled in
+        # the specified Dockerfile and should be based on any of the official
+        # images in claudiospizzi/ansiblectl.
+        [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_KeyFiles')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_1Password')]
+        [System.String]
+        $Dockerfile,
+
         # If set, the local SSH keys in the ~/.ssh directory of the user profile
         # will be mounted into the container.
-        [Parameter(Mandatory = $true, ParameterSetName = 'Profile')]
-        [Switch]
-        $ProfileSshKeys,
+        [Parameter(Mandatory = $false, ParameterSetName = 'ContainerImage_KeyFiles')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'AnsibleVersion_KeyFiles')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Dockerfile_KeyFiles')]
+        [System.String]
+        $SshKeyFilePath = "$HOME/.ssh",
 
         # If set, the 1Password key items will be used. The item can be
         # specified by id or by name. All specified keys are mounted into the
         # container.
-        [Parameter(Mandatory = $true, ParameterSetName = '1Password')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'ContainerImage_1Password')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'AnsibleVersion_1Password')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_1Password')]
         [System.String[]]
         $OnePasswordSshKeys,
 
@@ -126,23 +149,73 @@ function Start-AnsibleCtl
 
 
         ##
+        ## Container Image
+        ##
+
+        if ($PSCmdlet.ParameterSetName -like 'ContainerImage_*')
+        {
+            # Nothing to do, the container image is already specified.
+        }
+
+        if ($PSCmdlet.ParameterSetName -like 'AnsibleVersion_*')
+        {
+            $ContainerImage = "claudiospizzi/ansiblectl:$AnsibleVersion"
+        }
+
+        if ($PSCmdlet.ParameterSetName -like 'Dockerfile_*')
+        {
+            # Check if the specified Dockerfile actually exists.
+            if (-not (Test-Path -Path $Dockerfile))
+            {
+                throw "The specified Dockerfile '$Dockerfile' does not exist."
+            }
+
+            # Prepare a container image name based on the Dockerfile hash.
+            $dockerfileHash = Get-FileHash -Path $Dockerfile -Algorithm 'SHA1' | ForEach-Object { $_.Hash.ToLower() }
+            $ContainerImage = 'custom/ansiblectl:{0}' -f $dockerfileHash
+            $dockerfilePath = Split-Path -Path $Dockerfile -Parent
+
+            # Build the container image from the specified Dockerfile.
+            $dockerImageBuildSplat = @{
+                FilePath               = 'docker.exe'
+                ArgumentList           = @('build', '-t', $ContainerImage, '-f', $Dockerfile, $dockerfilePath)
+                NoNewWindow            = $true
+                PassThru               = $true
+                Wait                   = $true
+                RedirectStandardOutput = [System.IO.Path]::GetTempFileName()
+            }
+            $dockerImageBuild = Start-Process @dockerImageBuildSplat
+
+            # Check if the Docker build was successful.
+            if ($dockerImageBuild.ExitCode -ne 0)
+            {
+                throw "The Docker build of the specified Dockerfile '$Dockerfile' failed. Check the console error output for more details."
+            }
+            else
+            {
+                # Clean-up the Docker build log file if the build was successful.
+                Remove-Item -Path $dockerImageBuildSplat.RedirectStandardOutput -Force -ErrorAction 'SilentlyContinue'
+            }
+        }
+
+
+        ##
         ## SSH Keys
         ##
 
-        if ($PSCmdlet.ParameterSetName -eq 'Profile')
+        if ($PSCmdlet.ParameterSetName -like '*_KeyFiles')
         {
             # Use the local SSH keys in the ~/.ssh directory.
-            $localSshPath = Join-Path -Path $HOME -ChildPath '.ssh'
-            if (-not (Test-Path -Path $localSshPath))
+            if (-not (Test-Path -Path $SshKeyFilePath))
             {
-                throw 'The local SSH key directory ~/.ssh does not exist.'
+                throw "The specified SSH key directory '$SshKeyFilePath' does not exist."
             }
 
             # Ensure we have some SSH keys
-            $sshKeyFiles = Get-ChildItem -Path $localSshPath -Filter 'id_*' -File
+            $sshKeyFiles = Get-ChildItem -Path $SshKeyFilePath -Filter 'id_*' -File
             if ($null -eq $sshKeyFiles)
             {
-                throw 'No local SSH key files found in directory ~/.ssh.'
+                throw "No specified SSH key files found in the specified directory '$SshKeyFilePath'."
             }
 
             # Copy all files from the local SSH directory to the repository
@@ -153,7 +226,7 @@ function Start-AnsibleCtl
             }
         }
 
-        if ($PSCmdlet.ParameterSetName -eq '1Password')
+        if ($PSCmdlet.ParameterSetName -like '*_1Password')
         {
             # Check if 1Password is actually running.
             if ($null -eq (Get-Process -Name '1password' -ErrorAction 'SilentlyContinue'))
@@ -190,16 +263,26 @@ function Start-AnsibleCtl
         ## Run Ansible Control Node
         ##
 
+        # Show a nice SSH Key Mode information
+        if ($PSCmdlet.ParameterSetName -like '*_KeyFiles')
+        {
+            $headerSshKeyMode = 'Key Files ({0})' -f $SshKeyFilePath
+        }
+        if ($PSCmdlet.ParameterSetName -like '*_1Password')
+        {
+            $headerSshKeyMode = '1Password Items ({0})' -f ($OnePasswordSshKeys -join ', ')
+        }
+
         # User information
         if (-not $Silent.IsPresent)
         {
             Write-Host ''
-            Write-Host 'ANSIBLE CONTROL NODE'
-            Write-Host '********************'
+            Write-Host 'ANSIBLE CONTROL NODE' -ForegroundColor 'Magenta'
+            Write-Host '********************' -ForegroundColor 'Magenta'
             Write-Host ''
-            Write-Host "Ansible Repo: $RepositoryPath"
-            Write-Host "Docker Image: $ContainerImage"
-            Write-Host "SSH Key Mode: $($PSCmdlet.ParameterSetName)"
+            Write-Host "Ansible Repo    : $RepositoryPath"
+            Write-Host "Container Image : $ContainerImage"
+            Write-Host "SSH Key Mode    : $headerSshKeyMode"
             Write-Host ''
         }
 
