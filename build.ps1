@@ -1,7 +1,7 @@
 ﻿
 $tag = 'dev'
 
-docker build -t "claudiospizzi/ansiblectl:$tag" .
+docker build -t "claudiospizzi/ansiblectl:$tag" --build-arg 'ANSIBLE_VERSION=11.10.0-1ppa~noble' .
 
 Import-Module './AnsibleCtl/AnsibleCtl.psd1' -Force
 
