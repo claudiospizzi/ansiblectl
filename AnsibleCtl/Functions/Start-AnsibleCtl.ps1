@@ -18,7 +18,9 @@ function Start-AnsibleCtl
 {
     [Alias('ansiblectl')]
     [CmdletBinding(DefaultParameterSetName = 'ContainerImage_KeyFiles')]
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification = 'This function provides an interactive experience for the user.')]
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', '', Justification = 'The 1Password key item is not a password but the item id or name.')]
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'This function does not change the system state. It only starts a container instance.')]
     param
     (
         # Path to the Ansible repository. Defaults to the current directory.
@@ -171,7 +173,7 @@ function Start-AnsibleCtl
             }
 
             # Prepare a container image name based on the Dockerfile hash.
-            $dockerfileHash = Get-FileHash -Path $Dockerfile -Algorithm 'SHA1' | ForEach-Object { $_.Hash.ToLower() }
+            $dockerfileHash = Get-FileHash -Path $Dockerfile -Algorithm 'SHA256' | ForEach-Object { $_.Hash.ToLower().Substring(0, 12) }
             $ContainerImage = 'custom/ansiblectl:{0}' -f $dockerfileHash
             $dockerfilePath = Split-Path -Path $Dockerfile -Parent
 

@@ -1,4 +1,8 @@
-﻿
+﻿<#
+    .SYNOPSIS
+        PowerShell module build script using the InvokeBuildHelper utility.
+#>
+
 # Import build tasks
 . InvokeBuildHelperTasks
 
