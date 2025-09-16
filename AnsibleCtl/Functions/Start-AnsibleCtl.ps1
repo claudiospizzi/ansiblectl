@@ -9,7 +9,8 @@
 
     .EXAMPLE
         PS C:\> Start-AnsibleCtl
-        .
+        Start the Ansible control container instance in the current directory
+        and search $HOME/.ssh for SSH keys.
 
     .LINK
         https://github.com/claudiospizzi/ansiblectl
