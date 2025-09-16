@@ -25,23 +25,16 @@ body:
     validations:
       required: true
   - type: input
-    id: container-version
+    id: version
     attributes:
-      label: Module Version
-      description: Specify the used version of this module
+      label: Version
+      description: Specify the used version(s).
     validations:
       required: true
   - type: input
-    id: platform
+    id: environment
     attributes:
-      label: Platform/OS
-      description: Specify the Platform and/or Operating System
-    validations:
-      required: false
-  - type: input
-    id: browser
-    attributes:
-      label: Browser
-      description: Specify the Browser
+      label: Environment
+      description: Specify the Operating System, PLatform, Browser, etc.
     validations:
       required: false
