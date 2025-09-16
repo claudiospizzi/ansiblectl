@@ -6,3 +6,5 @@ The format is mainly based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
+
+- Added: Initial development release of AnsibleCtl with the Start-AnsibleCtl cmdlet
