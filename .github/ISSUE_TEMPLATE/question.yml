@@ -3,6 +3,8 @@ description: Ask a question about this project.
 title: "[Question]: "
 labels:
   - question
+assignees:
+  - claudiospizzi
 body:
   - type: markdown
     attributes:
