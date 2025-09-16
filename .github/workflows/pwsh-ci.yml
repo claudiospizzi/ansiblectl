@@ -1,13 +1,13 @@
-name: PowerShell CI
+name: PowerShell - CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ 'main' ]
     paths: [ '**.ps1', '**.psm1', '**.psd1', '**.ps1xml', '.github/workflows/pwsh-ci.yml' ]
 
 jobs:
   build:
-    name: Build
+    name: Build & Test
     runs-on: ubuntu-latest
     steps:
 
