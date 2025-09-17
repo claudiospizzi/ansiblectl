@@ -23,3 +23,6 @@ Split-Path -Path $PSCommandPath |
 Set-StrictMode -Version 'Latest'
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
+
+# Set module version
+$Script:PSModuleVersion = Import-PowerShellDataFile -Path $PSCommandPath.Replace('.psm1', '.psd1') | Select-Object -ExpandProperty 'ModuleVersion'
