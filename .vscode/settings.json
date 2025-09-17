@@ -50,6 +50,8 @@
     "cSpell.words": [
         "ansible",
         "ansiblectl",
+        "buildx",
+        "Buildx",
         "dpkg",
         "pipx"
     ]

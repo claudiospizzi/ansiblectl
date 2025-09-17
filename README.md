@@ -66,3 +66,27 @@ ToDo.
 ### PowerShell
 
 The latest PowerShell version is also installed in the container.
+
+## Container Image Versions
+
+The AnsibleCtl PowerShell module allows you to specify the Ansible version to use. The version corresponds to the tag of the container image. The following list shows the generated tags.
+
+- `latest`  
+  This is set to the latest stable Ansible version.
+- `<AnsibleVersion>`  
+  This tag corresponds to the specified Ansible community package release version. It's always used as a three-digit version number. Verify the official [Releases and maintenance - Ansible community changelogs](https://docs.ansible.com/ansible/latest/reference_appendices/release_and_maintenance.html#ansible-community-changelogs) for available versions.
+- `<AnsibleVersion>-<AnsibleCtlVersion>`  
+  This tag combines the Ansible version with the AnsibleCtl version. This is useful to ensure that you are using a specific AnsibleCtl version along with a specific Ansible version is used.
+- `<AnsibleVersion>-preview`  
+  This tag is generated for preview releases of every CI build and always points to the latest CI build for the specified Ansible version.
+- `<AnsibleVersion>-<GitCommitId>-preview`  
+  This tag is generated for preview releases of every CI build and combines the Ansible version with the Git commit ID of the current build.
+
+The following placeholders are used in the tags:
+
+- `<AnsibleVersion>`  
+  The version of Ansible (e.g. `11.10.0`, `12.0.0`, etc.).
+- `<AnsibleCtlVersion>`
+  The version of the AnsibleCtl itself, always semantic versioning (e.g. `1.0.0`, etc.).
+- `<GitCommitId>`  
+  The short Git commit ID of the current build (e.g. `a1b2c3d`, etc.).  

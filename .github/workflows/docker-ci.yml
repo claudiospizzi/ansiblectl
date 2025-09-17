@@ -40,6 +40,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=${{ matrix.ansible-version }}-preview
+            type=sha,prefix=${{ matrix.ansible-version }}-,suffix=-preview,format=short
 
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5
