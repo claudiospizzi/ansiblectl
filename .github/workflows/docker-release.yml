@@ -9,12 +9,32 @@ permissions:
   packages: write
 
 jobs:
-  registry:
-    name: GitHub Container Registry
+  prepare:
+    name: Prepare Matrix
     runs-on: ubuntu-latest
+    outputs:
+      ansible-versions: ${{ steps.set-matrix.outputs.ansible-versions }}
+      latest-version: ${{ steps.set-matrix.outputs.latest-version }}
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set Matrix
+        id: set-matrix
+        run: |
+          matrix=$(cat docker/config.json | jq -r '.ansible.versions')
+          latest=$(cat docker/config.json | jq -r '.ansible.versions[0]')
+          echo "ansible-versions=$matrix" >> $GITHUB_OUTPUT
+          echo "latest-version=$latest" >> $GITHUB_OUTPUT
+
+  registry:
+    name: Build & Push
+    runs-on: ubuntu-latest
+    needs: prepare
     strategy:
       matrix:
-        ansible-version: [ '12.0.0', '11.10.0', '10.7.0' ]
+        ansible-version: ${{ fromJson(needs.prepare.outputs.ansible-versions) }}
 
     steps:
 
@@ -39,6 +59,7 @@ jobs:
           tags: |
             type=raw,value=${{ matrix.ansible-version }}
             type=raw,value=${{ matrix.ansible-version }}-${{ github.ref_name }}
+            type=raw,value=latest,enable=${{ matrix.ansible-version == needs.prepare.outputs.latest-version }}
 
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5
