@@ -13,6 +13,19 @@ The Ansible Control (ansiblectl) provides a **lightweight containerized** enviro
 - **PowerShell Module**  
   The PowerShell module provides a simple way to interactively start the Ansible Control container image. It's solves the task of manage and inject SSH keys into the container, Ansible repository volume mounting, bash history, etc. It's available on the PowerShell Gallery as [`AnsibleCtl`](https://www.powershellgallery.com/packages/AnsibleCtl).
 
+## Versions
+
+These are the currently maintained versions of Ansible in ansiblectl, as described in the [Ansible Releases](https://docs.ansible.com/ansible/latest/reference_appendices/release_and_maintenance.html#ansible-community-changelogs) documentation:
+
+- `12.0.0` (latest)  
+  Ansible 12.x with core 2.19 is the current latest stable release.
+
+- `11.10.0`  
+  Ansible 11.x with core 2.18 is in extended maintenance.
+
+- `10.7.0`  
+  Ansible 10.x with core 2.17 even unmaintained (end of life) is still available in ansiblectl.
+
 ## Prerequisites
 
 To use ansiblectl, you need to have the following prerequisites installed on your Windows machine:

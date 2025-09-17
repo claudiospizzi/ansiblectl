@@ -1,18 +1,16 @@
-name: Docker - CI
+name: Docker - Release
 
 on:
   push:
-    branches: [ 'main' ]
-    tags-ignore: [ '**' ]
-    paths: [ 'docker/**', '.github/workflows/docker-ci.yml' ]
+    tags: [ '*.*.*' ]
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  build:
-    name: Build
+  registry:
+    name: GitHub Container Registry
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -39,8 +37,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=${{ matrix.ansible-version }}-preview
-            type=sha,prefix=${{ matrix.ansible-version }}-,suffix=-preview,format=short
+            type=raw,value=${{ matrix.ansible-version }}
+            type=raw,value=${{ matrix.ansible-version }}-${{ github.ref_name }}
 
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5
