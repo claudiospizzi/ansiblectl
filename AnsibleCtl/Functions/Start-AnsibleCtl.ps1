@@ -32,6 +32,7 @@ function Start-AnsibleCtl
         # The container image to use.
         [Parameter(Mandatory = $false, ParameterSetName = 'ContainerImage_KeyFiles')]
         [Parameter(Mandatory = $false, ParameterSetName = 'ContainerImage_1Password')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'ContainerImage_NoKeys')]
         [System.String]
         $ContainerImage = 'claudiospizzi/ansiblectl:latest',
 
@@ -41,6 +42,7 @@ function Start-AnsibleCtl
         # registry claudiospizzi/ansiblectl.
         [Parameter(Mandatory = $true, ParameterSetName = 'AnsibleVersion_KeyFiles')]
         [Parameter(Mandatory = $true, ParameterSetName = 'AnsibleVersion_1Password')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'AnsibleVersion_NoKeys')]
         [System.String]
         $AnsibleVersion,
 
@@ -50,6 +52,7 @@ function Start-AnsibleCtl
         # images in claudiospizzi/ansiblectl.
         [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_KeyFiles')]
         [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_1Password')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_NoKeys')]
         [System.String]
         $Dockerfile,
 
@@ -69,6 +72,15 @@ function Start-AnsibleCtl
         [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_1Password')]
         [System.String[]]
         $OnePasswordSshKeys,
+
+        # If set, no SSH keys will be mounted into the container. This is useful
+        # if Ansible is used only for the local system or cloud services which
+        # don't required any SSH keys
+        [Parameter(Mandatory = $true, ParameterSetName = 'ContainerImage_NoKeys')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'AnsibleVersion_NoKeys')]
+        [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_NoKeys')]
+        [Switch]
+        $SkipSshKeys,
 
         # Flag to hide the output header before starting the container.
         [Parameter(Mandatory = $false)]
@@ -127,11 +139,22 @@ function Start-AnsibleCtl
         # This folder will contain the SSH keys to be mounted into the
         # container. They will be deleted as soon as the container starts. We
         # have a background task and the finally block to ensure this folder is
-        # always cleaned up.
+        # always cleaned up. But to be sure we don't use old keys, we clean it
+        # up at the beginning as well. Leave a note as a .txt file to inform the
+        # user that this folder is managed by ansiblectl and cleaned up
+        # automatically.
         $repositorySshPath = Join-Path -Path $RepositoryPath -ChildPath '.ansiblectl/.ssh'
         if (-not (Test-Path -Path $repositorySshPath))
         {
             New-Item -Path $repositorySshPath -ItemType 'Directory' | Out-Null
+        }
+        else
+        {
+            Get-ChildItem -Path $repositorySshPath -Filter 'id_*' -File | Remove-Item -Force
+        }
+        if (-not (Test-Path -Path (Join-Path -Path $repositorySshPath -ChildPath 'DO-NOT-SAVE-SSH-KEYS-IN-THIS-FOLDER.txt')))
+        {
+            Set-Content -Path (Join-Path -Path $repositorySshPath -ChildPath 'DO-NOT-SAVE-SSH-KEYS-IN-THIS-FOLDER.txt') -Value "IMPORTANT NOTE`n**************`n`nThis folder is managed by ansiblectl. All SSH key files are cleaned up`nautomatically. Do not use this folder as your personal SSH key files storage." -Encoding 'UTF8'
         }
 
         # Ensure there is a .gitignore file in the .ssh path to ensure, that no
@@ -261,6 +284,14 @@ function Start-AnsibleCtl
             }
         }
 
+        if ($PSCmdlet.ParameterSetName -like '*_NoKeys')
+        {
+            if (-not $SkipSshKeys.IsPresent)
+            {
+                throw 'Setting the -SkipSshKeys switch to false is not supported. Please set it to true (or just use the switch). As an alternative use the -SshKeyFilePath or -OnePasswordSshKeys parameters to specify SSH keys.'
+            }
+        }
+
 
         ##
         ## Run Ansible Control Node
@@ -274,6 +305,10 @@ function Start-AnsibleCtl
         if ($PSCmdlet.ParameterSetName -like '*_1Password')
         {
             $headerSshKeyMode = '1Password Items ({0})' -f ($OnePasswordSshKeys -join ', ')
+        }
+        if ($PSCmdlet.ParameterSetName -like '*_NoKeys')
+        {
+            $headerSshKeyMode = 'Disabled'
         }
 
         # User information
