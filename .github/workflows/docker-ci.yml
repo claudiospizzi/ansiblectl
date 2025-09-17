@@ -24,7 +24,7 @@ jobs:
       - name: Set Matrix
         id: set-matrix
         run: |
-          matrix=$(cat docker/config.json | jq -r '.ansible.versions')
+          matrix=$(cat docker/config.json | jq -c '.ansible.versions')
           echo "ansible-versions=$matrix" >> $GITHUB_OUTPUT
 
   registry:

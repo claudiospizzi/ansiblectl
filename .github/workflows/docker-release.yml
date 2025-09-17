@@ -23,7 +23,7 @@ jobs:
       - name: Set Matrix
         id: set-matrix
         run: |
-          matrix=$(cat docker/config.json | jq -r '.ansible.versions')
+          matrix=$(cat docker/config.json | jq -c '.ansible.versions')
           latest=$(cat docker/config.json | jq -r '.ansible.versions[0]')
           echo "ansible-versions=$matrix" >> $GITHUB_OUTPUT
           echo "latest-version=$latest" >> $GITHUB_OUTPUT
