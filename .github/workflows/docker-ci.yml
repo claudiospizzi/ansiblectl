@@ -6,13 +6,17 @@ on:
     tags-ignore: [ '**' ]
     paths: [ 'docker/**', '.github/workflows/docker-ci.yml' ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        ansible-version: [ '11.10.0', '12.0.0' ]
+        ansible-version: [ '11.10.0' ]
 
     steps:
 
