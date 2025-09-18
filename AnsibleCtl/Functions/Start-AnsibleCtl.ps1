@@ -360,17 +360,29 @@ function Start-AnsibleCtl
 
         if ($PSCmdlet.ParameterSetName -like 'Dockerfile_*')
         {
-            Write-Host "> Building container image from specified Dockerfile..."
+            if (-not $Silent.IsPresent)
+            {
+                Write-Host '> Building container image from specified Dockerfile...'
+            }
             Invoke-DockerProcess -Command 'build' -ArgumentList '-t', $ContainerImage, '-f', $Dockerfile, $dockerfilePath -ErrorMessage "The Docker build of the Dockerfile '$Dockerfile' failed."
         }
         else
         {
-            Write-Host "> Pulling container image from remote registry..."
+            if (-not $Silent.IsPresent)
+            {
+                Write-Host '> Pulling container image from remote registry...'
+            }
             Invoke-DockerProcess -Command 'pull' -ArgumentList $ContainerImage -ErrorMessage "The Docker pull of the container image '$ContainerImage' failed."
         }
 
         # Create a clean-up job to remove the key files after 15 seconds
         Start-Job -ScriptBlock { Start-Sleep -Seconds 15; Get-ChildItem -Path $using:repositorySshPath -Filter 'id_*' -File | Remove-Item -Force } | Out-Null
+
+        if (-not $Silent.IsPresent)
+        {
+            Write-Host '> Start ansiblectl container with mounted volumes...'
+            Write-Host ''
+        }
 
         Invoke-DockerProcess -Command 'run' -ArgumentList '-it', '--rm', '-h', 'ansiblectl', '-v', $dockerSshKeysVolumeMount, '-v', $dockerRepositoryPathVolumeMount, '-v', $dockerBashHistoryVolumeMount, $ContainerImage
     }
@@ -394,6 +406,9 @@ function Start-AnsibleCtl
 # List all available ansible versions (image tags) from the GitHub Container Registry
 Register-ArgumentCompleter -CommandName 'Start-AnsibleCtl' -ParameterName 'AnsibleVersion' -ScriptBlock {
     param ($CommandName, $ParameterName, $WordToComplete, $CommandAst, $FakeBoundParameters)
+
+    # Hardcode the 'latest' tag as it's always available
+    [System.Management.Automation.CompletionResult]::new('latest', 'latest', 'ParameterValue', 'latest')
 
     # Query the config.json from the GitHub repository to get the available
     # Ansible versions which will be builded and published to the container.

@@ -24,7 +24,7 @@ function Invoke-DockerProcess
         # The error message to display if the command fails.
         [Parameter(Mandatory = $false)]
         [System.String]
-        $ErrorMessage = 'The docker command failed.'
+        $ErrorMessage = 'The Docker command failed.'
     )
 
     try
@@ -52,7 +52,7 @@ function Invoke-DockerProcess
         {
             if ($VerbosePreference -eq 'SilentlyContinue')
             {
-                throw "$ErrorMessage Error Output: $(Get-Content -Path $dockerCommandSplat.RedirectStandardError)"
+                throw "$ErrorMessage Exit Code: $($dockerProcess.ExitCode). Error Output: $(Get-Content -Path $dockerCommandSplat.RedirectStandardError)"
             }
             else
             {
