@@ -395,8 +395,6 @@ function Start-AnsibleCtl
 Register-ArgumentCompleter -CommandName 'Start-AnsibleCtl' -ParameterName 'AnsibleVersion' -ScriptBlock {
     param ($CommandName, $ParameterName, $WordToComplete, $CommandAst, $FakeBoundParameters)
 
-    $ciSuffix = '-ci'
-
     # Query the config.json from the GitHub repository to get the available
     # Ansible versions which will be builded and published to the container.
     # This is not perfect, but the image registry has non anonymous API to get
@@ -405,7 +403,7 @@ Register-ArgumentCompleter -CommandName 'Start-AnsibleCtl' -ParameterName 'Ansib
     foreach ($ansibleVersion in $config.ansible.versions) {
         if ($ansibleVersion -like "$WordToComplete*") {
             [System.Management.Automation.CompletionResult]::new($ansibleVersion, $ansibleVersion, 'ParameterValue', $ansibleVersion)
-            [System.Management.Automation.CompletionResult]::new("$ansibleVersion$ciSuffix", "$ansibleVersion$ciSuffix", 'ParameterValue', "$ansibleVersion$ciSuffix")
+            [System.Management.Automation.CompletionResult]::new("$ansibleVersion-ci", "$ansibleVersion-ci", 'ParameterValue', "$ansibleVersion-ci")
         }
     }
 }
