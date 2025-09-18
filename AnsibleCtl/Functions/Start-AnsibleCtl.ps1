@@ -3,9 +3,11 @@
         Start the Ansible control container instance.
 
     .DESCRIPTION
-        This function will start the container image claudiospizzi/ansiblectl
-        with the required parameters for binding the Ansible files and the SSH
-        keys.
+        This function will start a container from the pre-built image which
+        already provides all features for mapping the repository, SSH keys and
+        so on. The image ghcr.io/claudiospizzi/ansiblectl is available from the
+        GitHub Container Registry. Without specifying a different image or
+        ansible version, the latest version of the image will be used.
 
     .EXAMPLE
         PS C:\> Start-AnsibleCtl
@@ -34,12 +36,12 @@ function Start-AnsibleCtl
         [Parameter(Mandatory = $false, ParameterSetName = 'ContainerImage_1Password')]
         [Parameter(Mandatory = $false, ParameterSetName = 'ContainerImage_NoKeys')]
         [System.String]
-        $ContainerImage = 'claudiospizzi/ansiblectl:latest',
+        $ContainerImage = 'ghcr.io/claudiospizzi/ansiblectl:latest',
 
         # The Ansible version to use. This will be the container image tag, so
         # semantic versioning is supported of the Ansible community package
         # release version. It has to be a prebuilt image in the container
-        # registry claudiospizzi/ansiblectl.
+        # registry ghcr.io/claudiospizzi/ansiblectl.
         [Parameter(Mandatory = $true, ParameterSetName = 'AnsibleVersion_KeyFiles')]
         [Parameter(Mandatory = $true, ParameterSetName = 'AnsibleVersion_1Password')]
         [Parameter(Mandatory = $true, ParameterSetName = 'AnsibleVersion_NoKeys')]
@@ -49,7 +51,7 @@ function Start-AnsibleCtl
         # If set, a custom Dockerfile will be used to build the container image
         # before starting the Ansible Control. The base image is controlled in
         # the specified Dockerfile and should be based on any of the official
-        # images in claudiospizzi/ansiblectl.
+        # images in ghcr.io/claudiospizzi/ansiblectl.
         [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_KeyFiles')]
         [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_1Password')]
         [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_NoKeys')]
