@@ -96,6 +96,11 @@ function Start-AnsibleCtl
 
         Write-Verbose "[ansiblectl] Version $Script:PSModuleVersion"
 
+        if (-not $Silent.IsPresent -and $VerbosePreference -eq 'SilentlyContinue')
+        {
+            Write-Host "> Verify input and prepare .ansiblectl cache folder...      `r" -NoNewline
+        }
+
         # Ensure we are on a Windows system by using the legacy Windows
         # PowerShell or the modern cross-platform PowerShell on the Windows OS.
         if ($PSVersionTable.PSVersion.Major -gt 5 -and -not $IsWindows)
@@ -193,6 +198,11 @@ function Start-AnsibleCtl
         ## Container Image
         ##
 
+        if (-not $Silent.IsPresent -and $VerbosePreference -eq 'SilentlyContinue')
+        {
+            Write-Host "> Define container image for the ansiblectl container...    `r" -NoNewline
+        }
+
         if ($PSCmdlet.ParameterSetName -like 'ContainerImage_*')
         {
             # Nothing to do, the container image is already specified.
@@ -230,6 +240,11 @@ function Start-AnsibleCtl
         ##
         ## SSH Keys
         ##
+
+        if (-not $Silent.IsPresent -and $VerbosePreference -eq 'SilentlyContinue')
+        {
+            Write-Host "> Prepare SSH Keys for the ansiblectl container...          `r" -NoNewline
+        }
 
         $sshKeysCleanupFiles = @()
 
@@ -340,18 +355,6 @@ function Start-AnsibleCtl
         ## Run Ansible Control Node
         ##
 
-        if (-not $Silent.IsPresent)
-        {
-            Write-Host ''
-            Write-Host 'ANSIBLE CONTROL NODE' -ForegroundColor 'Magenta'
-            Write-Host '********************' -ForegroundColor 'Magenta'
-            Write-Host ''
-            Write-Host "Ansible Repo    : $repositoryFullPath"
-            Write-Host "Container Image : $ContainerImage"
-            Write-Host "SSH Key Mode    : $sshKeyMode"
-            Write-Host ''
-        }
-
         $normalizedRepositoryPath = '/{0}' -f $repositoryFullPath.Replace(':', '').Replace('\', '/').Trim('/')
 
         $dockerSshKeysVolumeMount        = '{0}/.ansiblectl/.ssh:/tmp/.ssh' -f $normalizedRepositoryPath
@@ -360,17 +363,17 @@ function Start-AnsibleCtl
 
         if ($PSCmdlet.ParameterSetName -like 'Dockerfile_*')
         {
-            if (-not $Silent.IsPresent)
+            if (-not $Silent.IsPresent -and $VerbosePreference -eq 'SilentlyContinue')
             {
-                Write-Host '> Building container image from specified Dockerfile...'
+                Write-Host "> Building container image from specified Dockerfile...     `r" -NoNewline
             }
             Invoke-DockerProcess -Command 'build' -ArgumentList '-t', $ContainerImage, '-f', $Dockerfile, $dockerfilePath -ErrorMessage "The Docker build of the Dockerfile '$Dockerfile' failed."
         }
         else
         {
-            if (-not $Silent.IsPresent)
+            if (-not $Silent.IsPresent -and $VerbosePreference -eq 'SilentlyContinue')
             {
-                Write-Host '> Pulling container image from remote registry...'
+                Write-Host "> Pulling container image from remote registry...           `r" -NoNewline
             }
             Invoke-DockerProcess -Command 'pull' -ArgumentList $ContainerImage -ErrorMessage "The Docker pull of the container image '$ContainerImage' failed."
         }
@@ -380,11 +383,17 @@ function Start-AnsibleCtl
 
         if (-not $Silent.IsPresent)
         {
-            Write-Host '> Start ansiblectl container with mounted volumes...'
+            Write-Host '                                                            '
+            Write-Host 'ANSIBLE CONTROL NODE' -ForegroundColor 'Magenta'
+            Write-Host '********************' -ForegroundColor 'Magenta'
+            Write-Host ''
+            Write-Host "Ansible Repo    : $repositoryFullPath"
+            Write-Host "Container Image : $ContainerImage"
+            Write-Host "SSH Key Mode    : $sshKeyMode"
             Write-Host ''
         }
 
-        Invoke-DockerProcess -Command 'run' -ArgumentList '-it', '--rm', '-h', 'ansiblectl', '-v', $dockerSshKeysVolumeMount, '-v', $dockerRepositoryPathVolumeMount, '-v', $dockerBashHistoryVolumeMount, $ContainerImage
+        Invoke-DockerProcess -Command 'run' -ArgumentList '-it', '--rm', '-h', 'ansiblectl', '-v', $dockerSshKeysVolumeMount, '-v', $dockerRepositoryPathVolumeMount, '-v', $dockerBashHistoryVolumeMount, $ContainerImage -ShowOutput
     }
     catch
     {
@@ -408,7 +417,7 @@ Register-ArgumentCompleter -CommandName 'Start-AnsibleCtl' -ParameterName 'Ansib
     param ($CommandName, $ParameterName, $WordToComplete, $CommandAst, $FakeBoundParameters)
 
     # Hardcode the 'latest' tag as it's always available
-    [System.Management.Automation.CompletionResult]::new('latest', 'latest', 'ParameterValue', 'latest')
+    $results = @('latest')
 
     # Query the config.json from the GitHub repository to get the available
     # Ansible versions which will be builded and published to the container.
@@ -416,9 +425,15 @@ Register-ArgumentCompleter -CommandName 'Start-AnsibleCtl' -ParameterName 'Ansib
     # all containers tags.
     $config = Invoke-RestMethod -uri 'https://raw.githubusercontent.com/claudiospizzi/ansiblectl/refs/heads/main/docker/config.json'
     foreach ($ansibleVersion in $config.ansible.versions) {
-        if ($ansibleVersion -like "$WordToComplete*") {
-            [System.Management.Automation.CompletionResult]::new($ansibleVersion, $ansibleVersion, 'ParameterValue', $ansibleVersion)
-            [System.Management.Automation.CompletionResult]::new("$ansibleVersion-ci", "$ansibleVersion-ci", 'ParameterValue', "$ansibleVersion-ci")
+        $results += $ansibleVersion
+        $results += "$ansibleVersion-ci"
+    }
+
+    foreach ($result in $results)
+    {
+        if ($result -like "$WordToComplete*")
+        {
+            [System.Management.Automation.CompletionResult]::new($result, $result, 'ParameterValue', $result)
         }
     }
 }

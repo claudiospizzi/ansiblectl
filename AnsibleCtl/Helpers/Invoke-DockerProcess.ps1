@@ -21,6 +21,11 @@ function Invoke-DockerProcess
         [System.String[]]
         $ArgumentList,
 
+        # If specified, show the output of the docker command in the console.
+        [Parameter(Mandatory = $false)]
+        [Switch]
+        $ShowOutput,
+
         # The error message to display if the command fails.
         [Parameter(Mandatory = $false)]
         [System.String]
@@ -41,7 +46,7 @@ function Invoke-DockerProcess
 
         # If -Verbose was specified, don't redirect the output and show it in
         # the console output.
-        if ($VerbosePreference -eq 'SilentlyContinue')
+        if ($VerbosePreference -eq 'SilentlyContinue' -and -not $ShowOutput.IsPresent)
         {
             $dockerCommandSplat['RedirectStandardOutput'] = [System.IO.Path]::GetTempFileName()
             $dockerCommandSplat['RedirectStandardError']  = [System.IO.Path]::GetTempFileName()
