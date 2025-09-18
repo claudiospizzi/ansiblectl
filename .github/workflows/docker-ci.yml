@@ -56,8 +56,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=${{ matrix.ansible-version }}-preview
-            type=sha,prefix=${{ matrix.ansible-version }}-,suffix=-preview,format=short
+            type=raw,value=${{ matrix.ansible-version }}-ci
+            type=sha,prefix=${{ matrix.ansible-version }}-,suffix=-ci,format=short
 
       - name: Build and Push Docker image
         uses: docker/build-push-action@v5

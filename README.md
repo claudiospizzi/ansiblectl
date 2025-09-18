@@ -90,9 +90,9 @@ The AnsibleCtl PowerShell module allows you to specify the Ansible version to us
   This tag corresponds to the specified Ansible community package release version. It's always used as a three-digit version number. Verify the official [Releases and maintenance - Ansible community changelogs](https://docs.ansible.com/ansible/latest/reference_appendices/release_and_maintenance.html#ansible-community-changelogs) for available versions.
 - `<AnsibleVersion>-<AnsibleCtlVersion>`  
   This tag combines the Ansible version with the AnsibleCtl version. This is useful to ensure that you are using a specific AnsibleCtl version along with a specific Ansible version is used.
-- `<AnsibleVersion>-preview`  
-  This tag is generated for preview releases of every CI build and always points to the latest CI build for the specified Ansible version.
-- `<AnsibleVersion>-<GitCommitId>-preview`  
+- `<AnsibleVersion>-ci`  
+  This tag is generated for the preview releases of every CI build and always points to the latest CI build for the specified Ansible version.
+- `<AnsibleVersion>-<GitCommitId>-ci`  
   This tag is generated for preview releases of every CI build and combines the Ansible version with the Git commit ID of the current build.
 
 The following placeholders are used in the tags:

@@ -25,7 +25,7 @@ function Start-AnsibleCtl
     param
     (
         # Path to the Ansible repository. Defaults to the current directory.
-        [Parameter(Mandatory = $false)]
+        [Parameter(Mandatory = $false, Position = 0)]
         [System.String]
         $RepositoryPath = $PWD.Path,
 
@@ -62,7 +62,7 @@ function Start-AnsibleCtl
         [Parameter(Mandatory = $false, ParameterSetName = 'AnsibleVersion_KeyFiles')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Dockerfile_KeyFiles')]
         [System.String]
-        $SshKeyFilePath = "$HOME/.ssh",
+        $SshKeysFilePath = "$HOME/.ssh",
 
         # If set, the 1Password key items will be used. The item can be
         # specified by id or by name. All specified keys are mounted into the
@@ -71,7 +71,7 @@ function Start-AnsibleCtl
         [Parameter(Mandatory = $true, ParameterSetName = 'AnsibleVersion_1Password')]
         [Parameter(Mandatory = $true, ParameterSetName = 'Dockerfile_1Password')]
         [System.String[]]
-        $OnePasswordSshKeys,
+        $SshKeys1Password,
 
         # If set, no SSH keys will be mounted into the container. This is useful
         # if Ansible is used only for the local system or cloud services which
@@ -103,20 +103,18 @@ function Start-AnsibleCtl
             throw 'The ansiblectl module was designed to run on Windows. Linux and MacOS are not supported.'
         }
 
-        # Check if the Docker Desktop is installed.
+        # Check if the Docker Desktop is installed and if it's actually running.
         if ($null -eq (Get-Command -Name 'docker.exe' -CommandType 'Application' -ErrorAction 'SilentlyContinue'))
         {
             throw 'The Docker executable docker.exe was not found in the path. Ensure Docker Desktop is installed.'
         }
-
-        # Check if Docker Desktop is actually running.
         if ($null -eq (Get-Process -Name 'Docker Desktop' -ErrorAction 'SilentlyContinue'))
         {
             throw 'The Docker Desktop process was not found. Ensure Docker Desktop is installed and started.'
         }
 
-        # Check if the specified repository contains an actual Ansible
-        # inventory. At the end, resolve it to the full path.
+        # Check if the specified repository contains an Ansible inventory file
+        # called ansible.cfg.
         if (-not (Test-Path -Path $RepositoryPath))
         {
             throw 'The specified Ansible repository does not exist (folder not found).'
@@ -138,7 +136,8 @@ function Start-AnsibleCtl
         $repositoryFullPath = Resolve-Path -Path $RepositoryPath | Select-Object -First 1 -ExpandProperty 'Path'
         Write-Verbose "[ansiblectl] [Repository] Resolved Path: $repositoryFullPath"
 
-        # We use a path in the repository to cache ansiblectl related files.
+        # We use a path in the repository to cache ansiblectl related files,
+        # this is the .ansiblectl folder.
         $repositoryCachePath = Join-Path -Path $repositoryFullPath -ChildPath '.ansiblectl'
         Write-Verbose "[ansiblectl] [Repository] Verify Cache Path: $repositoryCachePath"
         if (-not (Test-Path -Path $repositoryCachePath))
@@ -149,8 +148,8 @@ function Start-AnsibleCtl
         # This folder will contain the SSH keys to be mounted into the
         # container. They will be deleted as soon as the container starts. We
         # have a background task and the finally block to ensure this folder is
-        # always cleaned up. But to be sure we don't use old keys, we clean it
-        # up at the beginning as well.
+        # always cleaned up. It's also cleaned up before the ansiblectl starts
+        # to be sure no old keys are used.
         $repositorySshPath = Join-Path -Path $repositoryFullPath -ChildPath '.ansiblectl/.ssh'
         Write-Verbose "[ansiblectl] [Repository] Verify SSH Folder: $repositorySshPath"
         if (-not (Test-Path -Path $repositorySshPath))
@@ -159,20 +158,20 @@ function Start-AnsibleCtl
         }
         else
         {
-            Get-ChildItem -Path $repositorySshPath -Filter 'id_*' -File | Remove-Item -Force
+            Get-ChildItem -Path $repositorySshPath -Filter 'id_*' -File | ForEach-Object { Write-Warning "SSH Keys found in ansiblectl managed folder: $_" }
         }
 
-        # Ensure there is a note file in the .ssh path to inform the user that
+        # Check if there is a note file in the .ssh path to inform the user that
         # this folder is managed by ansiblectl and cleaned up automatically.
         $repositorySshUserInfoPath = Join-Path -Path $repositoryFullPath -ChildPath '.ansiblectl/.ssh/DO-NOT-SAVE-SSH-KEYS-IN-THIS-FOLDER.txt'
         Write-Verbose "[ansiblectl] [Repository] Verify SSH Key User Info File: $repositorySshUserInfoPath"
         if (-not (Test-Path -Path $repositorySshUserInfoPath))
         {
-            Set-Content -Path $repositorySshUserInfoPath -Value "IMPORTANT NOTE`n**************`n`nThis folder is managed by ansiblectl. All SSH key files are cleaned up`nautomatically. Do not use this folder as your personal SSH key files storage." -Encoding 'UTF8'
+            Set-Content -Path $repositorySshUserInfoPath -Value 'IMPORTANT NOTE', '**************', '', 'This folder is managed by ansiblectl. All SSH key files are cleaned up', 'automatically. Do not use this folder as your personal SSH key files storage.' -Encoding 'UTF8'
         }
 
-        # Ensure there is a .gitignore file in the .ssh path to ensure, that no
-        # ssh key is checked into a git repository.
+        # Check if there is a .gitignore file in the .ssh path to ensure, that
+        # no ssh key is checked into any git repository.
         $repositorySshGitIgnorePath = Join-Path -Path $repositoryFullPath -ChildPath '.ansiblectl/.ssh/.gitignore'
         Write-Verbose "[ansiblectl] [Repository] Verify SSH .gitignore File: $repositorySshGitIgnorePath"
         if (-not (Test-Path -Path $repositorySshGitIgnorePath))
@@ -180,8 +179,8 @@ function Start-AnsibleCtl
             Set-Content -Path $repositorySshGitIgnorePath -Value '# Ignore all files in the folder', '*' -Encoding 'UTF8'
         }
 
-        # Store the bash history to have the latest command of the target
-        # ansible repository.
+        # Store the bash history to have the past command for the repository
+        # available over multiple runs.
         $repositoryBashHistoryPath = Join-Path -Path $repositoryFullPath -ChildPath '.ansiblectl/.bash_history'
         Write-Verbose "[ansiblectl] [Repository] Verify Bash History File: $repositoryBashHistoryPath"
         if (-not (Test-Path -Path $repositoryBashHistoryPath))
@@ -221,31 +220,10 @@ function Start-AnsibleCtl
 
             # Prepare a container image name based on the Dockerfile hash.
             $dockerfileHash = Get-FileHash -Path $Dockerfile -Algorithm 'SHA256' | ForEach-Object { $_.Hash.ToLower().Substring(0, 12) }
-            $ContainerImage = 'custom/ansiblectl:{0}' -f $dockerfileHash
             $dockerfilePath = Split-Path -Path $Dockerfile -Parent
+            $ContainerImage = 'localhost/ansiblectl:{0}' -f $dockerfileHash
 
-            # Build the container image from the specified Dockerfile.
-            Write-Verbose "[ansiblectl] [Container Image] docker build -t $ContainerImage -f $Dockerfile $dockerfilePath"
-            $dockerImageBuildSplat = @{
-                FilePath               = 'docker.exe'
-                ArgumentList           = @('build', '-t', $ContainerImage, '-f', $Dockerfile, $dockerfilePath)
-                NoNewWindow            = $true
-                PassThru               = $true
-                Wait                   = $true
-                RedirectStandardOutput = [System.IO.Path]::GetTempFileName()
-                RedirectStandardError  = [System.IO.Path]::GetTempFileName()
-            }
-            $dockerImageBuild = Start-Process @dockerImageBuildSplat
-
-            # Check if the Docker build was successful.
-            if ($dockerImageBuild.ExitCode -ne 0)
-            {
-                throw "The Docker build of the specified Dockerfile '$Dockerfile' failed.`n$(Get-Content -Path $dockerImageBuildSplat.RedirectStandardError -Raw)"
-            }
-            Remove-Item -Path $dockerImageBuildSplat.RedirectStandardOutput -Force -ErrorAction 'SilentlyContinue'
-            Remove-Item -Path $dockerImageBuildSplat.RedirectStandardError -Force -ErrorAction 'SilentlyContinue'
-
-            Write-Verbose "[ansiblectl] [Container Image] Image: $ContainerImage"
+            Write-Verbose "[ansiblectl] [Container Image] Image: $ContainerImage (to be built from Dockerfile)"
         }
 
 
@@ -253,31 +231,39 @@ function Start-AnsibleCtl
         ## SSH Keys
         ##
 
+        $sshKeysCleanupFiles = @()
+
         if ($PSCmdlet.ParameterSetName -like '*_KeyFiles')
         {
             # Use the local SSH keys in the ~/.ssh directory.
-            if (-not (Test-Path -Path $SshKeyFilePath))
+            if (-not (Test-Path -Path $SshKeysFilePath))
             {
-                throw "The specified SSH key directory '$SshKeyFilePath' does not exist."
+                throw "The specified SSH key directory '$SshKeysFilePath' does not exist."
             }
 
-            Write-Verbose "[ansiblectl] [SSH Keys] Using local SSH keys: $SshKeyFilePath"
+            Write-Verbose "[ansiblectl] [SSH Keys] Using local SSH keys: $SshKeysFilePath"
 
             # Ensure we have some SSH keys
-            $sshKeyFiles = Get-ChildItem -Path $SshKeyFilePath -Filter 'id_*' -File
+            $sshKeyFiles = Get-ChildItem -Path $SshKeysFilePath -Filter 'id_*' -File
             if ($null -eq $sshKeyFiles)
             {
-                throw "No specified SSH key files found in the specified directory '$SshKeyFilePath'."
+                throw "No specified SSH key files found in the specified directory '$SshKeysFilePath'."
             }
 
             # Copy all files from the local SSH directory to the repository
             # cache SSH directory.
             foreach ($sshKeyFile in $sshKeyFiles)
             {
-                Write-Verbose "[ansiblectl] [SSH Keys] Copying local SSH key: $($sshKeyFile.FullName) -> $repositorySshPath\$($sshKeyFile.Name)"
+                $sshKeyTempFile = Join-Path -Path $repositorySshPath -ChildPath $sshKeyFile.Name
 
-                Copy-Item -Path $sshKeyFile.FullName -Destination $repositorySshPath -Verbose -Force
+                Write-Verbose "[ansiblectl] [SSH Keys] Copying local SSH key: $($sshKeyFile.FullName) -> $sshKeyTempFile"
+
+                Copy-Item -Path $sshKeyFile.FullName -Destination $sshKeyTempFile -Force
+
+                $sshKeysCleanupFiles += $sshKeyTempFile
             }
+
+            $sshKeyMode = 'Key Files ({0})' -f $SshKeysFilePath
         }
 
         if ($PSCmdlet.ParameterSetName -like '*_1Password')
@@ -294,11 +280,11 @@ function Start-AnsibleCtl
                 throw 'The 1Password executable op.exe was not found in the path. Ensure 1Password CLI is installed.'
             }
 
-            Write-Verbose "[ansiblectl] [SSH Keys] Using 1Password SSH keys: $($OnePasswordSshKeys -join ', ')"
+            Write-Verbose "[ansiblectl] [SSH Keys] Using 1Password SSH keys: $($SshKeys1Password -join ', ')"
 
             # Ensure we have some SSH keys
             $sshKeyItems = op.exe item list --categories "SSH Key" --format 'json' | ConvertFrom-Json |
-                Where-Object { $_.id -in $OnePasswordSshKeys -or $_.title -in $OnePasswordSshKeys }
+                Where-Object { $_.id -in $SshKeys1Password -or $_.title -in $SshKeys1Password }
             if ($null -eq $sshKeyItems)
             {
                 throw 'No SSH key items found in 1Password which match the specified key id or name. Unable to mount the SSH keys into the Ansible control node.'
@@ -307,15 +293,34 @@ function Start-AnsibleCtl
             # Export all items to the to the repository cache SSH directory.
             foreach ($sshKeyItem in $sshKeyItems)
             {
+                # Generate objects with the properties:
+                # - Name  : The file name to use (id_<item id> and id_<item id>.pub)
+                # - Value : The content of the file (public or private key)
                 Write-Verbose "[ansiblectl] [SSH Keys] Exporting 1Password SSH key: $($sshKeyItem.title)"
-                $sshKeyItemDetail = op.exe item get $sshKeyItem.id --fields "label=public key,label=private key,label=key type" --format json | ConvertFrom-Json
+                $sshKeyFiles = op.exe item get $sshKeyItem.id --fields "label=public key,label=private key" --format json |
+                    ConvertFrom-Json |
+                        ForEach-Object {
+                            $nameTemplate = 'id_{0}'
+                            if ($_.label -eq 'public key')
+                            {
+                                $nameTemplate += '.pub'
+                            }
+                            [PSCustomObject] @{
+                                Name = $nameTemplate -f $sshKeyItem.id
+                                Value = $_.value
+                            }
+                        }
 
-                Write-Verbose "[ansiblectl] [SSH Keys] Store 1Password SSH key file: $repositorySshPath\id_$($sshKeyItem.id).pub"
-                Set-Content -Path "$repositorySshPath\id_$($sshKeyItem.id).pub" -Value $sshKeyItemDetail.Where({ $_.label -eq 'public key' }).value -Encoding 'UTF8'
-
-                Write-Verbose "[ansiblectl] [SSH Keys] Store 1Password SSH key file: $repositorySshPath\id_$($sshKeyItem.id)"
-                Set-Content -Path "$repositorySshPath\id_$($sshKeyItem.id)" -Value $sshKeyItemDetail.Where({ $_.label -eq 'private key' }).value -Encoding 'UTF8'
+                foreach ($sshKeyFile in $sshKeyFiles)
+                {
+                    $sshKeyTempFile = Join-Path -Path $repositorySshPath -ChildPath $sshKeyFile.Name
+                    Write-Verbose "[ansiblectl] [SSH Keys] Store 1Password SSH key file: $sshKeyTempFile"
+                    Set-Content -Path $sshKeyTempFile -Value $sshKeyFile.Value -Encoding 'UTF8'
+                    $sshKeysCleanupFiles += $sshKeyTempFile
+                }
             }
+
+            $sshKeyMode = '1Password Items ({0})' -f ($SshKeys1Password -join ', ')
         }
 
         if ($PSCmdlet.ParameterSetName -like '*_NoKeys')
@@ -326,6 +331,8 @@ function Start-AnsibleCtl
             {
                 throw 'Setting the -NoSshKeys switch to false is not supported. Please set it to true (or just use the switch). As an alternative use the -SshKeyFilePath or -OnePasswordSshKeys parameters to specify SSH keys.'
             }
+
+            $sshKeyMode = 'Disabled'
         }
 
 
@@ -333,21 +340,6 @@ function Start-AnsibleCtl
         ## Run Ansible Control Node
         ##
 
-        # Show a nice SSH Key Mode information
-        if ($PSCmdlet.ParameterSetName -like '*_KeyFiles')
-        {
-            $headerSshKeyMode = 'Key Files ({0})' -f $SshKeyFilePath
-        }
-        if ($PSCmdlet.ParameterSetName -like '*_1Password')
-        {
-            $headerSshKeyMode = '1Password Items ({0})' -f ($OnePasswordSshKeys -join ', ')
-        }
-        if ($PSCmdlet.ParameterSetName -like '*_NoKeys')
-        {
-            $headerSshKeyMode = 'Disabled'
-        }
-
-        # User information
         if (-not $Silent.IsPresent)
         {
             Write-Host ''
@@ -356,7 +348,7 @@ function Start-AnsibleCtl
             Write-Host ''
             Write-Host "Ansible Repo    : $repositoryFullPath"
             Write-Host "Container Image : $ContainerImage"
-            Write-Host "SSH Key Mode    : $headerSshKeyMode"
+            Write-Host "SSH Key Mode    : $sshKeyMode"
             Write-Host ''
         }
 
@@ -366,54 +358,21 @@ function Start-AnsibleCtl
         $dockerBashHistoryVolumeMount    = '{0}/.ansiblectl/.bash_history:/root/.bash_history' -f $normalizedRepositoryPath
         $dockerRepositoryPathVolumeMount = '{0}:/ansible' -f $normalizedRepositoryPath
 
-        # Pull the container image to ensure we have the latest version.
-        Write-Verbose "[ansiblectl] docker pull $ContainerImage"
-        $dockerPullSplat = @{
-            FilePath               = 'docker.exe'
-            ArgumentList           = @('pull', $ContainerImage)
-            NoNewWindow            = $true
-            PassThru               = $true
-            Wait                   = $true
-            RedirectStandardOutput = [System.IO.Path]::GetTempFileName()
-            RedirectStandardError  = [System.IO.Path]::GetTempFileName()
-        }
-        $dockerPull = Start-Process @dockerPullSplat
-
-        # Check if the Docker pull was successful.
-        if ($dockerPull.ExitCode -ne 0)
+        if ($PSCmdlet.ParameterSetName -like 'Dockerfile_*')
         {
-            throw "The Docker pull of the container image '$ContainerImage' failed.`n$(Get-Content -Path $dockerPullSplat.RedirectStandardError -Raw)"
+            Write-Host "> Building container image from specified Dockerfile..."
+            Invoke-DockerProcess -Command 'build' -ArgumentList '-t', $ContainerImage, '-f', $Dockerfile, $dockerfilePath -ErrorMessage "The Docker build of the Dockerfile '$Dockerfile' failed."
         }
-        Remove-Item -Path $dockerPullSplat.RedirectStandardOutput -Force -ErrorAction 'SilentlyContinue'
-        Remove-Item -Path $dockerPullSplat.RedirectStandardError -Force -ErrorAction 'SilentlyContinue'
+        else
+        {
+            Write-Host "> Pulling container image from remote registry..."
+            Invoke-DockerProcess -Command 'pull' -ArgumentList $ContainerImage -ErrorMessage "The Docker pull of the container image '$ContainerImage' failed."
+        }
 
-        # Clean-up the key files after 15 seconds
+        # Create a clean-up job to remove the key files after 15 seconds
         Start-Job -ScriptBlock { Start-Sleep -Seconds 15; Get-ChildItem -Path $using:repositorySshPath -Filter 'id_*' -File | Remove-Item -Force } | Out-Null
 
-        # Run the Docker container with docker run. If successful, the script
-        # will halt at this point until the container is exited by the user.
-        Write-Verbose "[ansiblectl] docker run -it --rm -h ansiblectl -v $dockerSshKeysVolumeMount -v $dockerRepositoryPathVolumeMount -v $dockerBashHistoryVolumeMount $ContainerImage"
-        $dockerRunSplat = @{
-            FilePath               = 'docker.exe'
-            ArgumentList           = @('run', '-it', '--rm', '-h', 'ansiblectl', '-v', $dockerSshKeysVolumeMount, '-v', $dockerRepositoryPathVolumeMount, '-v', $dockerBashHistoryVolumeMount, $ContainerImage)
-            NoNewWindow            = $true
-            PassThru               = $true
-            Wait                   = $true
-            RedirectStandardOutput = [System.IO.Path]::GetTempFileName()
-            RedirectStandardError  = [System.IO.Path]::GetTempFileName()
-            ErrorAction           = 'Continue'
-        }
-        $dockerRun = Start-Process @dockerRunSplat
-
-        # Check if the Docker run was successful.
-        if ($dockerRun.ExitCode -ne 0)
-        {
-            throw "The Docker run of the container image '$ContainerImage' failed.`n$(Get-Content -Path $dockerRunSplat.RedirectStandardError -Raw)"
-        }
-        Remove-Item -Path $dockerRunSplat.RedirectStandardOutput -Force -ErrorAction 'SilentlyContinue'
-        Remove-Item -Path $dockerRunSplat.RedirectStandardError -Force -ErrorAction 'SilentlyContinue'
-
-        # $dockerResult = docker.exe run -it --rm -h 'ansiblectl' -v $dockerSshKeysVolumeMount -v $dockerRepositoryPathVolumeMount -v $dockerBashHistoryVolumeMount $ContainerImage
+        Invoke-DockerProcess -Command 'run' -ArgumentList '-it', '--rm', '-h', 'ansiblectl', '-v', $dockerSshKeysVolumeMount, '-v', $dockerRepositoryPathVolumeMount, '-v', $dockerBashHistoryVolumeMount, $ContainerImage
     }
     catch
     {
@@ -422,10 +381,12 @@ function Start-AnsibleCtl
     finally
     {
         # Ensure no key files are stored in the repository after running this command
-        $repositorySshPath = Join-Path -Path $RepositoryPath -ChildPath '.ansiblectl/.ssh'
-        if (Test-Path -Path $repositorySshPath)
+        foreach ($sshKeysCleanupFile in $sshKeysCleanupFiles)
         {
-            Get-ChildItem -Path $repositorySshPath -Filter 'id_*' -File | Remove-Item -Force
+            if (Test-Path -Path $sshKeysCleanupFile)
+            {
+                Remove-Item -Path $sshKeysCleanupFile -Force
+            }
         }
     }
 }
@@ -433,6 +394,8 @@ function Start-AnsibleCtl
 # List all available ansible versions (image tags) from the GitHub Container Registry
 Register-ArgumentCompleter -CommandName 'Start-AnsibleCtl' -ParameterName 'AnsibleVersion' -ScriptBlock {
     param ($CommandName, $ParameterName, $WordToComplete, $CommandAst, $FakeBoundParameters)
+
+    $ciSuffix = '-ci'
 
     # Query the config.json from the GitHub repository to get the available
     # Ansible versions which will be builded and published to the container.
@@ -442,6 +405,7 @@ Register-ArgumentCompleter -CommandName 'Start-AnsibleCtl' -ParameterName 'Ansib
     foreach ($ansibleVersion in $config.ansible.versions) {
         if ($ansibleVersion -like "$WordToComplete*") {
             [System.Management.Automation.CompletionResult]::new($ansibleVersion, $ansibleVersion, 'ParameterValue', $ansibleVersion)
+            [System.Management.Automation.CompletionResult]::new("$ansibleVersion$ciSuffix", "$ansibleVersion$ciSuffix", 'ParameterValue', "$ansibleVersion$ciSuffix")
         }
     }
 }
