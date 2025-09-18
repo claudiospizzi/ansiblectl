@@ -5,7 +5,7 @@ set -e
 
 # The /tmp/.ssh directory is used to pass SSH keys to the container. If it is empty
 # or does not exist, no SSH keys will be imported.
-if [ -d "/tmp/.ssh" ] && [ "$(ls -A /tmp/.ssh 2>/dev/null)" ]; then
+if [ -d "/tmp/.ssh" ] && [ "$(ls -A /tmp/.ssh/id_* 2>/dev/null)" ]; then
 
     # Copy all SSH keys from the temporary directory to the root's SSH directory.
     cp -R /tmp/.ssh/id_* /root/.ssh/
