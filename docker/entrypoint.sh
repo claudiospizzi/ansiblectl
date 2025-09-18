@@ -8,7 +8,7 @@ set -e
 if [ -d "/tmp/.ssh" ] && [ "$(ls -A /tmp/.ssh 2>/dev/null)" ]; then
 
     # Copy all SSH keys from the temporary directory to the root's SSH directory.
-    cp -R /tmp/.ssh/* /root/.ssh/
+    cp -R /tmp/.ssh/id_* /root/.ssh/
 
     # Ensure proper line breaks and line endings in all SSH key files.
     find /root/.ssh -type f -name "id_*" -exec dos2unix -q {} +
