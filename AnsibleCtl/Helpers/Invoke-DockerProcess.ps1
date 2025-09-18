@@ -55,7 +55,7 @@ function Invoke-DockerProcess
 
         if ($dockerProcess.ExitCode -ne 0)
         {
-            if ($VerbosePreference -eq 'SilentlyContinue')
+            if ($VerbosePreference -eq 'SilentlyContinue' -and -not $ShowOutput.IsPresent)
             {
                 throw "$ErrorMessage Exit Code: $($dockerProcess.ExitCode). Error Output: $(Get-Content -Path $dockerCommandSplat.RedirectStandardError)"
             }
